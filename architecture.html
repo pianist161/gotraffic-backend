@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BiTrans → SEPAC — Architecture</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f1117; color: #e1e4e8; min-height: 100vh; padding: 40px 20px; }
+
+  h1 { text-align: center; font-size: 28px; margin-bottom: 8px; color: #fff; }
+  h1 span { color: #58a6ff; }
+  .subtitle { text-align: center; color: #8b949e; font-size: 14px; margin-bottom: 48px; }
+
+  .diagram { max-width: 1200px; margin: 0 auto; }
+
+  /* === SECTION TITLES === */
+  .section-title {
+    font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px;
+    color: #8b949e; margin: 48px 0 20px; padding-left: 4px; border-left: 3px solid #30363d; padding-left: 12px;
+  }
+  .section-title:first-of-type { margin-top: 0; }
+
+  /* === HIGH-LEVEL === */
+  .high-level { display: flex; align-items: stretch; gap: 0; justify-content: center; margin-bottom: 20px; }
+
+  .hl-box {
+    padding: 28px 36px; border-radius: 12px; text-align: center; position: relative; min-width: 220px;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .hl-box .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; opacity: 0.5; margin-bottom: 6px; }
+  .hl-box .name { font-size: 20px; font-weight: 700; }
+  .hl-box .tech { font-size: 12px; color: #8b949e; margin-top: 4px; }
+
+  .hl-frontend { background: linear-gradient(135deg, #1a1f35, #161b2e); border-color: #2d4a7a !important; }
+  .hl-frontend .name { color: #58a6ff; }
+
+  .hl-backend { background: linear-gradient(135deg, #1a2e1a, #162016); border-color: #2d6a2d !important; }
+  .hl-backend .name { color: #56d364; }
+
+  .hl-db { background: linear-gradient(135deg, #2e1f1a, #251a16); border-color: #7a4a2d !important; }
+  .hl-db .name { color: #f0883e; }
+
+  .hl-files { background: linear-gradient(135deg, #2e1a2e, #251625); border-color: #6a2d6a !important; }
+  .hl-files .name { color: #bc8cff; }
+
+  .arrow-h {
+    display: flex; align-items: center; padding: 0 8px; color: #484f58; font-size: 24px;
+    flex-direction: column; gap: 2px; min-width: 60px; justify-content: center;
+  }
+  .arrow-h .arr { font-size: 20px; color: #484f58; }
+  .arrow-h .proto { font-size: 9px; color: #6e7681; letter-spacing: 1px; }
+
+  /* === BACKEND LAYERS === */
+  .layers { display: flex; gap: 12px; margin: 20px 0; }
+  .layer {
+    flex: 1; background: #161b22; border: 1px solid #21262d; border-radius: 10px;
+    padding: 16px; position: relative; overflow: hidden;
+  }
+  .layer::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  }
+  .layer.routers::before { background: #58a6ff; }
+  .layer.schemas::before { background: #bc8cff; }
+  .layer.services::before { background: #56d364; }
+  .layer.parsers::before { background: #f0883e; }
+  .layer.models::before { background: #f778ba; }
+
+  .layer .ltitle { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .layer .ltitle .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .routers .dot { background: #58a6ff; }
+  .schemas .dot { background: #bc8cff; }
+  .services .dot { background: #56d364; }
+  .parsers .dot { background: #f0883e; }
+  .models .dot { background: #f778ba; }
+
+  .layer .item {
+    font-size: 11px; color: #8b949e; padding: 4px 8px; margin: 3px 0;
+    background: #0d1117; border-radius: 4px; font-family: 'Cascadia Code', 'Fira Code', monospace;
+  }
+  .layer .item.active { color: #e1e4e8; border-left: 2px solid; padding-left: 6px; }
+  .routers .item.active { border-color: #58a6ff; }
+  .services .item.active { border-color: #56d364; }
+  .parsers .item.active { border-color: #f0883e; }
+  .models .item.active { border-color: #f778ba; }
+
+  /* === DATA FLOW === */
+  .flow {
+    display: flex; align-items: center; gap: 0; margin: 32px 0;
+    background: #161b22; border: 1px solid #21262d; border-radius: 12px; padding: 20px 24px;
+    overflow-x: auto;
+  }
+  .flow-step {
+    text-align: center; min-width: 120px; padding: 12px 8px; position: relative;
+  }
+  .flow-step .icon { font-size: 28px; margin-bottom: 6px; }
+  .flow-step .fname { font-size: 12px; font-weight: 600; color: #e1e4e8; }
+  .flow-step .fdesc { font-size: 10px; color: #6e7681; margin-top: 2px; }
+  .flow-arrow { color: #30363d; font-size: 20px; padding: 0 4px; }
+
+  /* === FRONTEND PAGES === */
+  .pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin: 20px 0; }
+  .page-card {
+    background: #161b22; border: 1px solid #21262d; border-radius: 8px; padding: 14px;
+    transition: border-color 0.2s;
+  }
+  .page-card:hover { border-color: #58a6ff; }
+  .page-card .picon { font-size: 20px; margin-bottom: 6px; }
+  .page-card .pname { font-size: 13px; font-weight: 600; color: #e1e4e8; }
+  .page-card .proute { font-size: 10px; color: #58a6ff; font-family: monospace; margin-top: 2px; }
+  .page-card .pdesc { font-size: 10px; color: #6e7681; margin-top: 6px; line-height: 1.4; }
+
+  /* === DB SCHEMA === */
+  .schema-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin: 20px 0; }
+  .entity {
+    background: #161b22; border: 1px solid #21262d; border-radius: 8px; overflow: hidden;
+  }
+  .entity .ename {
+    font-size: 12px; font-weight: 700; padding: 8px 12px;
+    background: #1c2333; border-bottom: 1px solid #21262d;
+  }
+  .entity .fields { padding: 8px 12px; }
+  .entity .field { font-size: 10px; color: #8b949e; padding: 2px 0; font-family: monospace; }
+  .entity .field .pk { color: #f0883e; }
+  .entity .field .fk { color: #58a6ff; }
+  .entity .field .type { color: #6e7681; }
+
+  /* === API ENDPOINTS === */
+  .endpoints { margin: 20px 0; }
+  .ep-group { margin-bottom: 16px; }
+  .ep-group-title { font-size: 12px; font-weight: 700; color: #e1e4e8; margin-bottom: 8px; }
+  .ep {
+    display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 11px; font-family: monospace;
+  }
+  .ep .method {
+    font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 3px; min-width: 42px; text-align: center;
+  }
+  .ep .method.get { background: #1a3a2a; color: #56d364; }
+  .ep .method.post { background: #1a2a3a; color: #58a6ff; }
+  .ep .method.patch { background: #3a3a1a; color: #e3b341; }
+  .ep .method.delete { background: #3a1a1a; color: #f85149; }
+  .ep .path { color: #8b949e; }
+  .ep .desc { color: #484f58; margin-left: auto; font-family: 'Segoe UI', sans-serif; }
+
+  /* === CONVERSION FORMULA === */
+  .formula-box {
+    background: #161b22; border: 1px solid #21262d; border-radius: 12px;
+    padding: 24px; margin: 20px 0;
+  }
+  .formula-title { font-size: 14px; font-weight: 700; margin-bottom: 16px; color: #56d364; }
+  .ring-diagram { display: flex; gap: 24px; margin-bottom: 20px; flex-wrap: wrap; }
+  .ring {
+    background: #0d1117; border-radius: 8px; padding: 12px 16px; flex: 1; min-width: 240px;
+    border: 1px solid #21262d;
+  }
+  .ring-name { font-size: 11px; font-weight: 700; margin-bottom: 8px; color: #bc8cff; }
+  .ring-phases { font-size: 12px; font-family: monospace; color: #8b949e; line-height: 1.8; }
+  .ring-phases .ph { color: #58a6ff; font-weight: 600; }
+  .ring-phases .barrier { color: #f85149; font-weight: 700; }
+
+  .formulas { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+  .formula {
+    background: #0d1117; border-radius: 6px; padding: 8px 12px; font-family: monospace; font-size: 12px;
+    border-left: 3px solid #30363d;
+  }
+  .formula .phname { color: #58a6ff; font-weight: 600; }
+  .formula .eq { color: #56d364; }
+
+  /* === TECH STACK === */
+  .stack { display: flex; gap: 12px; flex-wrap: wrap; margin: 20px 0; }
+  .stack-item {
+    background: #161b22; border: 1px solid #21262d; border-radius: 8px;
+    padding: 10px 16px; display: flex; align-items: center; gap: 8px;
+  }
+  .stack-item .sname { font-size: 12px; font-weight: 600; }
+  .stack-item .sver { font-size: 10px; color: #6e7681; }
+</style>
+</head>
+<body>
+
+<h1>BiTrans → <span>SEPAC</span> Migration Tool</h1>
+<p class="subtitle">Miami-Dade County Traffic Signal Controller Migration — System Architecture</p>
+
+<div class="diagram">
+
+<!-- ==================== HIGH LEVEL ==================== -->
+<div class="section-title">System Overview</div>
+
+<div class="high-level">
+  <div class="hl-box hl-files">
+    <div class="label">Input</div>
+    <div class="name">Excel Files</div>
+    <div class="tech">.xls BiTrans Export<br>.xlsm Master List</div>
+  </div>
+  <div class="arrow-h">
+    <div class="arr">→</div>
+    <div class="proto">upload</div>
+  </div>
+  <div class="hl-box hl-frontend">
+    <div class="label">Frontend</div>
+    <div class="name">Next.js 16</div>
+    <div class="tech">React 19 · Bootstrap 5<br>localhost:3000</div>
+  </div>
+  <div class="arrow-h">
+    <div class="arr">⇄</div>
+    <div class="proto">REST API</div>
+  </div>
+  <div class="hl-box hl-backend">
+    <div class="label">Backend</div>
+    <div class="name">FastAPI</div>
+    <div class="tech">Python · Uvicorn<br>localhost:8000</div>
+  </div>
+  <div class="arrow-h">
+    <div class="arr">⇄</div>
+    <div class="proto">SQLAlchemy</div>
+  </div>
+  <div class="hl-box hl-db">
+    <div class="label">Database</div>
+    <div class="name">SQLite</div>
+    <div class="tech">bitrans_migration.db</div>
+  </div>
+</div>
+
+<!-- ==================== BACKEND LAYERS ==================== -->
+<div class="section-title">Backend Architecture — Layered Structure</div>
+
+<div class="layers">
+  <div class="layer routers">
+    <div class="ltitle"><span class="dot"></span> Routers (API)</div>
+    <div class="item active">upload_router.py</div>
+    <div class="item active">intersection_router.py</div>
+    <div class="item active">timing_router.py</div>
+    <div class="item active">conversion_router.py</div>
+    <div class="item active">migration_router.py</div>
+    <div class="item active">master_list_router.py</div>
+    <div class="item active">export_router.py</div>
+  </div>
+  <div class="layer schemas">
+    <div class="ltitle"><span class="dot"></span> Schemas</div>
+    <div class="item">common.py</div>
+    <div class="item">intersection.py</div>
+    <div class="item">timing.py</div>
+    <div class="item">conversion.py</div>
+    <div class="item">migration.py</div>
+    <div class="item">master_list.py</div>
+  </div>
+  <div class="layer services">
+    <div class="ltitle"><span class="dot"></span> Services</div>
+    <div class="item active">conversion_engine.py</div>
+    <div class="item active">intersection_service.py</div>
+    <div class="item active">migration_service.py</div>
+    <div class="item active">export_service.py</div>
+  </div>
+  <div class="layer parsers">
+    <div class="ltitle"><span class="dot"></span> Parsers</div>
+    <div class="item">page1_parser.py</div>
+    <div class="item">page2_parser.py</div>
+    <div class="item">page3_parser.py</div>
+    <div class="item">page4_parser.py</div>
+    <div class="item">page5_parser.py</div>
+    <div class="item">page6_parser.py</div>
+    <div class="item">page7_parser.py</div>
+    <div class="item">page8_parser.py</div>
+    <div class="item">bitrans_parser.py</div>
+    <div class="item">master_list_parser.py</div>
+  </div>
+  <div class="layer models">
+    <div class="ltitle"><span class="dot"></span> Models (DB)</div>
+    <div class="item active">intersection.py</div>
+    <div class="item active">timing.py</div>
+    <div class="item active">scheduling.py</div>
+    <div class="item active">hardware.py</div>
+    <div class="item active">master_list.py</div>
+    <div class="item active">migration.py</div>
+  </div>
+</div>
+
+<!-- ==================== DATA FLOW ==================== -->
+<div class="section-title">Data Flow — Upload to Export</div>
+
+<div class="flow">
+  <div class="flow-step">
+    <div class="icon">📄</div>
+    <div class="fname">XLS Upload</div>
+    <div class="fdesc">BiTrans .xls file</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="icon">🔍</div>
+    <div class="fname">Parse</div>
+    <div class="fdesc">9 sheets → objects</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="icon">💾</div>
+    <div class="fname">Persist</div>
+    <div class="fdesc">SQLite database</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="icon">⚡</div>
+    <div class="fname">Convert</div>
+    <div class="fdesc">ForceOff → Split</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="icon">✅</div>
+    <div class="fname">Validate</div>
+    <div class="fdesc">vs Min Splits</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="icon">👁️</div>
+    <div class="fname">Review</div>
+    <div class="fdesc">Web UI tables</div>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="icon">📥</div>
+    <div class="fname">Export</div>
+    <div class="fdesc">XLSX / JSON</div>
+  </div>
+</div>
+
+<!-- ==================== CONVERSION FORMULA ==================== -->
+<div class="section-title">Core Algorithm — ForceOff → SEPAC Split Conversion</div>
+
+<div class="formula-box">
+  <div class="formula-title">Dual-Ring 8-Phase Structure</div>
+  <div class="ring-diagram">
+    <div class="ring">
+      <div class="ring-name">Ring A</div>
+      <div class="ring-phases">
+        <span class="ph">Ph1</span>(left) → <span class="ph">Ph2</span>(thru) <span class="barrier">‖</span> <span class="ph">Ph3</span>(left) → <span class="ph">Ph4</span>(thru)
+      </div>
+    </div>
+    <div class="ring">
+      <div class="ring-name">Ring B</div>
+      <div class="ring-phases">
+        <span class="ph">Ph5</span>(left) → <span class="ph">Ph6</span>(thru) <span class="barrier">‖</span> <span class="ph">Ph7</span>(left) → <span class="ph">Ph8</span>(thru)
+      </div>
+    </div>
+  </div>
+
+  <div class="formula-title" style="font-size:12px; margin-bottom:12px;">Split Formulas</div>
+  <div class="formulas">
+    <div class="formula"><span class="phname">Ph1</span> <span class="eq">= FO₁ − FO₄</span></div>
+    <div class="formula"><span class="phname">Ph2</span> <span class="eq">= CL − FO₁</span></div>
+    <div class="formula"><span class="phname">Ph3</span> <span class="eq">= FO₃</span></div>
+    <div class="formula"><span class="phname">Ph4</span> <span class="eq">= FO₄ − FO₃</span></div>
+    <div class="formula"><span class="phname">Ph5</span> <span class="eq">= FO₅ − FO₈</span></div>
+    <div class="formula"><span class="phname">Ph6</span> <span class="eq">= CL − FO₅</span></div>
+    <div class="formula"><span class="phname">Ph7</span> <span class="eq">= FO₇</span></div>
+    <div class="formula"><span class="phname">Ph8</span> <span class="eq">= FO₈ − FO₇</span></div>
+  </div>
+</div>
+
+<!-- ==================== DB SCHEMA ==================== -->
+<div class="section-title">Database Schema — 10 Entities</div>
+
+<div class="schema-grid">
+  <div class="entity">
+    <div class="ename">🏗️ Intersection</div>
+    <div class="fields">
+      <div class="field"><span class="pk">PK</span> id</div>
+      <div class="field">asset_number <span class="type">str unique</span></div>
+      <div class="field">location_name <span class="type">str</span></div>
+      <div class="field">street_name_1, _2 <span class="type">str</span></div>
+      <div class="field">equipment_type <span class="type">str</span></div>
+      <div class="field">cabinet_type <span class="type">str</span></div>
+      <div class="field">has_preemption <span class="type">bool</span></div>
+      <div class="field">uploaded_at <span class="type">datetime</span></div>
+    </div>
+  </div>
+  <div class="entity">
+    <div class="ename">⏱️ PhaseTiming</div>
+    <div class="fields">
+      <div class="field"><span class="fk">FK</span> intersection_id</div>
+      <div class="field">bank <span class="type">int 1-3</span></div>
+      <div class="field">phase_number <span class="type">int 1-8</span></div>
+      <div class="field">ped_walk, ped_fdw <span class="type">float</span></div>
+      <div class="field">min_green <span class="type">float</span></div>
+      <div class="field">yellow_change <span class="type">float</span></div>
+      <div class="field">red_clear <span class="type">float</span></div>
+    </div>
+  </div>
+  <div class="entity">
+    <div class="ename">📋 CoordinationPlan</div>
+    <div class="fields">
+      <div class="field"><span class="fk">FK</span> intersection_id</div>
+      <div class="field">plan_number <span class="type">int 1-30</span></div>
+      <div class="field">cycle_length <span class="type">float</span></div>
+      <div class="field">phase1..8_force_off <span class="type">float</span></div>
+      <div class="field">sepac_split1..8 <span class="type">float?</span></div>
+      <div class="field">offset <span class="type">float</span></div>
+      <div class="field">converted <span class="type">bool</span></div>
+    </div>
+  </div>
+  <div class="entity">
+    <div class="ename">🕐 TODSchedule</div>
+    <div class="fields">
+      <div class="field"><span class="fk">FK</span> intersection_id</div>
+      <div class="field">bank, event_index <span class="type">int</span></div>
+      <div class="field">hour, minute <span class="type">int</span></div>
+      <div class="field">day_of_week <span class="type">str</span></div>
+      <div class="field">plan_number <span class="type">int</span></div>
+    </div>
+  </div>
+  <div class="entity">
+    <div class="ename">📡 Detector</div>
+    <div class="fields">
+      <div class="field"><span class="fk">FK</span> intersection_id</div>
+      <div class="field">detector_number <span class="type">int</span></div>
+      <div class="field">phase_assignment <span class="type">int?</span></div>
+      <div class="field">delay, extend <span class="type">float</span></div>
+      <div class="field">call_type <span class="type">str</span></div>
+    </div>
+  </div>
+  <div class="entity">
+    <div class="ename">🔀 Overlap</div>
+    <div class="fields">
+      <div class="field"><span class="fk">FK</span> intersection_id</div>
+      <div class="field">overlap_letter <span class="type">str A-H</span></div>
+      <div class="field">parent_phases <span class="type">str</span></div>
+      <div class="field">yellow_change <span class="type">float</span></div>
+      <div class="field">red_clear <span class="type">float</span></div>
+    </div>
+  </div>
+  <div class="entity">
+    <div class="ename">🚨 PreemptionConfig</div>
+    <div class="fields">
+      <div class="field"><span class="fk">FK</span> intersection_id</div>
+      <div class="field">preempt_number <span class="type">int</span></div>
+      <div class="field">delay, min_duration <span class="type">float</span></div>
+      <div class="field">track_green_phases <span class="type">str</span></div>
+      <div class="field">dwell_green_phases <span class="type">str</span></div>
+    </div>
+  </div>
+  <div class="entity">
+    <div class="ename">🔄 MigrationRecord</div>
+    <div class="fields">
+      <div class="field">asset_number <span class="type">str unique</span></div>
+      <div class="field">polygon <span class="type">str</span></div>
+      <div class="field">status <span class="type">enum</span></div>
+      <div class="field" style="font-size:9px; color:#6e7681; padding-top:4px;">pending → uploaded → parsed<br>→ converted → exported → complete</div>
+    </div>
+  </div>
+  <div class="entity">
+    <div class="ename">📚 MasterIntersection</div>
+    <div class="fields">
+      <div class="field">asset_number <span class="type">str</span></div>
+      <div class="field">polygon <span class="type">str</span></div>
+      <div class="field">location <span class="type">str</span></div>
+      <div class="field">phases_json <span class="type">JSON</span></div>
+    </div>
+  </div>
+  <div class="entity">
+    <div class="ename">➡️ PhaseMovement</div>
+    <div class="fields">
+      <div class="field"><span class="fk">FK</span> intersection_id</div>
+      <div class="field">phase_number <span class="type">int 1-8</span></div>
+      <div class="field">movement <span class="type">str</span></div>
+      <div class="field">protected <span class="type">bool</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== API ENDPOINTS ==================== -->
+<div class="section-title">API Endpoints — 20 Routes</div>
+
+<div class="endpoints">
+  <div class="ep-group">
+    <div class="ep-group-title">Upload</div>
+    <div class="ep"><span class="method post">POST</span> <span class="path">/api/upload/bitrans</span> <span class="desc">Upload & parse XLS</span></div>
+    <div class="ep"><span class="method post">POST</span> <span class="path">/api/upload/master-list</span> <span class="desc">Upload master XLSM</span></div>
+  </div>
+  <div class="ep-group">
+    <div class="ep-group-title">Intersections</div>
+    <div class="ep"><span class="method get">GET</span> <span class="path">/api/intersections</span> <span class="desc">List (paginated, searchable)</span></div>
+    <div class="ep"><span class="method get">GET</span> <span class="path">/api/intersections/{asset}</span> <span class="desc">Full detail</span></div>
+    <div class="ep"><span class="method delete">DEL</span> <span class="path">/api/intersections/{asset}</span> <span class="desc">Delete + cascade</span></div>
+  </div>
+  <div class="ep-group">
+    <div class="ep-group-title">Timing</div>
+    <div class="ep"><span class="method get">GET</span> <span class="path">/api/timing/{asset}/phase-timing</span> <span class="desc">Phase timings</span></div>
+    <div class="ep"><span class="method get">GET</span> <span class="path">/api/timing/{asset}/coordination-plans</span> <span class="desc">30 plans</span></div>
+    <div class="ep"><span class="method get">GET</span> <span class="path">/api/timing/{asset}/tod-schedule</span> <span class="desc">TOD entries</span></div>
+    <div class="ep"><span class="method get">GET</span> <span class="path">/api/timing/{asset}/detectors</span> <span class="desc">Detectors</span></div>
+    <div class="ep"><span class="method get">GET</span> <span class="path">/api/timing/{asset}/overlaps</span> <span class="desc">Overlaps</span></div>
+    <div class="ep"><span class="method get">GET</span> <span class="path">/api/timing/{asset}/preemption</span> <span class="desc">Preemption</span></div>
+  </div>
+  <div class="ep-group">
+    <div class="ep-group-title">Conversion</div>
+    <div class="ep"><span class="method post">POST</span> <span class="path">/api/conversion/{asset}/run</span> <span class="desc">Run conversion</span></div>
+    <div class="ep"><span class="method get">GET</span> <span class="path">/api/conversion/{asset}/results</span> <span class="desc">SEPAC splits</span></div>
+    <div class="ep"><span class="method get">GET</span> <span class="path">/api/conversion/{asset}/min-splits</span> <span class="desc">Min splits</span></div>
+    <div class="ep"><span class="method get">GET</span> <span class="path">/api/conversion/{asset}/validation</span> <span class="desc">Validate</span></div>
+  </div>
+  <div class="ep-group">
+    <div class="ep-group-title">Migration & Export</div>
+    <div class="ep"><span class="method get">GET</span> <span class="path">/api/migration/stats</span> <span class="desc">Summary counts</span></div>
+    <div class="ep"><span class="method get">GET</span> <span class="path">/api/migration</span> <span class="desc">List records</span></div>
+    <div class="ep"><span class="method patch">PATCH</span> <span class="path">/api/migration/{asset}/status</span> <span class="desc">Update status</span></div>
+    <div class="ep"><span class="method get">GET</span> <span class="path">/api/export/{asset}/excel</span> <span class="desc">Download XLSX</span></div>
+    <div class="ep"><span class="method get">GET</span> <span class="path">/api/export/{asset}/json</span> <span class="desc">Download JSON</span></div>
+  </div>
+</div>
+
+<!-- ==================== FRONTEND PAGES ==================== -->
+<div class="section-title">Frontend Pages — 8 Routes</div>
+
+<div class="pages">
+  <div class="page-card">
+    <div class="picon">📊</div>
+    <div class="pname">Dashboard</div>
+    <div class="proute">/migration</div>
+    <div class="pdesc">4 KPI-карточки, таблица последних загрузок</div>
+  </div>
+  <div class="page-card">
+    <div class="picon">📤</div>
+    <div class="pname">Upload</div>
+    <div class="proute">/migration/upload</div>
+    <div class="pdesc">Drag-and-drop загрузка XLS и Master List</div>
+  </div>
+  <div class="page-card">
+    <div class="picon">🚦</div>
+    <div class="pname">Intersections</div>
+    <div class="proute">/migration/intersections</div>
+    <div class="pdesc">Список перекрёстков с поиском и пагинацией</div>
+  </div>
+  <div class="page-card">
+    <div class="picon">🔎</div>
+    <div class="pname">Detail View</div>
+    <div class="proute">/intersections/[asset]</div>
+    <div class="pdesc">7 вкладок: Info, Timing, Plans, TOD, Det, Ovr, Pre</div>
+  </div>
+  <div class="page-card">
+    <div class="picon">⚡</div>
+    <div class="pname">Conversion</div>
+    <div class="proute">/conversion/[asset]</div>
+    <div class="pdesc">FO vs Split, валидация, график по планам</div>
+  </div>
+  <div class="page-card">
+    <div class="picon">📚</div>
+    <div class="pname">Master List</div>
+    <div class="proute">/migration/master-list</div>
+    <div class="pdesc">Справочник всех перекрёстков округа</div>
+  </div>
+  <div class="page-card">
+    <div class="picon">📋</div>
+    <div class="pname">Tracker</div>
+    <div class="proute">/migration/tracker</div>
+    <div class="pdesc">Прогресс-бар, статусы, смена статуса</div>
+  </div>
+  <div class="page-card">
+    <div class="picon">📥</div>
+    <div class="pname">Export</div>
+    <div class="proute">/migration/export</div>
+    <div class="pdesc">Мультиселект, батч XLSX/JSON экспорт</div>
+  </div>
+</div>
+
+<!-- ==================== TECH STACK ==================== -->
+<div class="section-title">Tech Stack</div>
+
+<div class="stack">
+  <div class="stack-item"><span class="sname" style="color:#56d364">FastAPI</span> <span class="sver">Python</span></div>
+  <div class="stack-item"><span class="sname" style="color:#58a6ff">Next.js</span> <span class="sver">16.1.6</span></div>
+  <div class="stack-item"><span class="sname" style="color:#58a6ff">React</span> <span class="sver">19.0</span></div>
+  <div class="stack-item"><span class="sname" style="color:#bc8cff">Bootstrap</span> <span class="sver">5.3.7</span></div>
+  <div class="stack-item"><span class="sname" style="color:#f0883e">SQLAlchemy</span> <span class="sver">ORM</span></div>
+  <div class="stack-item"><span class="sname" style="color:#f0883e">SQLite</span> <span class="sver">DB</span></div>
+  <div class="stack-item"><span class="sname" style="color:#e3b341">xlrd</span> <span class="sver">XLS parser</span></div>
+  <div class="stack-item"><span class="sname" style="color:#e3b341">openpyxl</span> <span class="sver">XLSX export</span></div>
+  <div class="stack-item"><span class="sname" style="color:#f85149">Axios</span> <span class="sver">HTTP client</span></div>
+  <div class="stack-item"><span class="sname" style="color:#56d364">Uvicorn</span> <span class="sver">ASGI server</span></div>
+</div>
+
+</div>
+</body>
+</html>

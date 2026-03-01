@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.db
+*.xlsx
+*.xls
+*.xlsm
+uploads/
+.claude/
