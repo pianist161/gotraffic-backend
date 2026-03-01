@@ -2,6 +2,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 
 from app.config import settings
 from app.database import Base, engine
@@ -28,13 +30,49 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.get_cors_origins(),
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Build allowed origins: explicit list + any Vercel preview URL
+_allowed_origins = settings.get_cors_origins()
+_vercel_suffix = ".vercel.app"
+
+
+def _is_origin_allowed(origin: str) -> bool:
+    """Check if origin is in explicit list or is a Vercel preview deployment."""
+    if origin in _allowed_origins:
+        return True
+    # Allow any *.vercel.app subdomain (preview deployments)
+    if origin.endswith(_vercel_suffix) and origin.startswith("https://"):
+        return True
+    return False
+
+
+class DynamicCORSMiddleware(BaseHTTPMiddleware):
+    """CORS middleware that dynamically allows Vercel preview URLs."""
+
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get("origin", "")
+
+        # Handle preflight OPTIONS requests
+        if request.method == "OPTIONS" and origin and _is_origin_allowed(origin):
+            from starlette.responses import Response
+            return Response(status_code=200, headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+                "Access-Control-Max-Age": "86400",
+            })
+
+        response = await call_next(request)
+        if origin and _is_origin_allowed(origin):
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "*"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+
+
+# Use dynamic CORS for Vercel preview support
+app.add_middleware(DynamicCORSMiddleware)
 
 app.include_router(upload.router, prefix="/api/upload", tags=["Upload"])
 app.include_router(intersections.router, prefix="/api/intersections", tags=["Intersections"])
