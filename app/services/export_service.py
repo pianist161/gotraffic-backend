@@ -115,6 +115,8 @@ def export_intersection_excel(db: Session, asset_number: str) -> io.BytesIO | No
     )
     header_fill = PatternFill(start_color="D9E2F3", end_color="D9E2F3", fill_type="solid")
     sepac_fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
+    fail_fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")  # red for failed splits
+    fail_font = Font(bold=True, color="9C0006")  # dark red text
     label_font = Font(bold=True)
 
     # Row 1: Title
@@ -171,6 +173,16 @@ def export_intersection_excel(db: Session, asset_number: str) -> io.BytesIO | No
         # Largest columns
         ws.cell(row=row, column=22, value=max_with_peds)
         ws.cell(row=row, column=23, value=max_without_peds)
+
+    # Build lookup: phase -> largest min split (with PEDs) for red highlighting
+    largest_min_peds = {}
+    for phase_num in range(1, 9):
+        max_val = 0.0
+        for bank_num in range(1, 4):
+            t = timings_by_bank.get(bank_num, {}).get(phase_num)
+            if t:
+                max_val = max(max_val, _compute_min_split_with_peds(t))
+        largest_min_peds[phase_num] = max_val
 
     # --- Location & Asset (rows 11-12, cols A-B) ---
     ws.cell(row=11, column=1, value="Location:").font = label_font
@@ -238,7 +250,14 @@ def export_intersection_excel(db: Session, asset_number: str) -> io.BytesIO | No
                 fo_cell.border = thin_border
                 sp_cell = ws.cell(row=ph_row, column=col + 1, value=round(split, 1))
                 sp_cell.border = thin_border
-                sp_cell.fill = sepac_fill
+
+                # Red highlight if SEPAC split < min split (with PEDs)
+                min_req = largest_min_peds.get(phase_num, 0.0)
+                if split > 0 and min_req > 0 and split < min_req:
+                    sp_cell.fill = fail_fill
+                    sp_cell.font = fail_font
+                else:
+                    sp_cell.fill = sepac_fill
 
         # Row 11: Ring Offset
         ro_row = base_row + 11
