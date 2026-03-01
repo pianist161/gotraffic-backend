@@ -21,6 +21,14 @@ from app.routers import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    # Migrate column sizes for PostgreSQL (safe to run multiple times)
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE intersections ALTER COLUMN section TYPE VARCHAR(255)"))
+            conn.commit()
+        except Exception:
+            conn.rollback()
     yield
 
 

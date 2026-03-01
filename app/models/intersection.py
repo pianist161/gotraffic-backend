@@ -14,7 +14,7 @@ class Intersection(Base):
     location_name: Mapped[str | None] = mapped_column(String(200))
     street_name_1: Mapped[str | None] = mapped_column(String(100))
     street_name_2: Mapped[str | None] = mapped_column(String(100))
-    section: Mapped[str | None] = mapped_column(String(20))
+    section: Mapped[str | None] = mapped_column(String(255))
     equipment_type: Mapped[str | None] = mapped_column(String(50))
     cabinet_type: Mapped[str | None] = mapped_column(String(50))
     drop_address: Mapped[str | None] = mapped_column(String(10))
