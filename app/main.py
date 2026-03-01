@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
@@ -94,3 +96,9 @@ app.include_router(export.router, prefix="/api/export", tags=["Export"])
 @app.get("/api/health")
 def health_check():
     return {"status": "ok"}
+
+
+@app.get("/docs-page", response_class=HTMLResponse, include_in_schema=False)
+def docs_page():
+    html_path = Path(__file__).resolve().parent.parent / "docs.html"
+    return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
