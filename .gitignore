@@ -1,8 +1,39 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+env/
+
+# Data files (не коммитить в репо)
 *.db
+*.sqlite3
 *.xlsx
 *.xls
 *.xlsm
+
+# Uploads and generated files
 uploads/
+screenshots/
+test_*.xlsx
+
+# Environment
+.env
+.env.*
+
+# Generated docs
+architecture.html
+docs.html
+
+# Test/verification scripts
+verify_parsers.py
+
+# IDE
 .claude/
+.vscode/
+.idea/
+*.swp
